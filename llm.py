@@ -16,7 +16,7 @@ llm_config = LLMConfig(
     accelerator_type="A10G",
     # You can customize the engine arguments (e.g. vLLM engine kwargs)
     engine_kwargs={
-        "tensor_parallel_size": 2,
+        "tensor_parallel_size": 1,
     },
     runtime_env={"env_vars": {"VLLM_USE_V1": "1"}},
 )
