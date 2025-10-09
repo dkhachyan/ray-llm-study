@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: raycluster-ingress
+  namespace: ns01
+  annotations:
+    # You can add ingress controller specific annotations here
+    # For example, for nginx ingress controller:
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: raycluster.local  # Change this to your actual domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: raycluster-autoscaler-head-svc
+            port:
+              number: 8265
+      - path: /client
+        pathType: Prefix
+        backend:
+          service:
+            name: raycluster-autoscaler-head-svc
+            port:
+              number: 10001

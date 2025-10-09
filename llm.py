@@ -1,3 +1,4 @@
+import ray
 from ray import serve
 from ray.serve.llm import LLMConfig, build_openai_app
 
@@ -9,11 +10,11 @@ llm_config = LLMConfig(
     deployment_config={
         "autoscaling_config": {
             "min_replicas": 1,
-            "max_replicas": 2,
+            "max_replicas": 1,
         }
     },
     # Pass the desired accelerator type (e.g. A10G, L4, etc.)
-    accelerator_type="A10G",
+    # accelerator_type="A10G",
     # You can customize the engine arguments (e.g. vLLM engine kwargs)
     engine_kwargs={
         "tensor_parallel_size": 1,

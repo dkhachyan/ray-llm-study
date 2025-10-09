@@ -2,7 +2,7 @@ apiVersion: ray.io/v1
 kind: RayCluster
 metadata:
   name: raycluster-autoscaler
-  namespace: kf-admins
+  namespace: ns01
 spec:
   # The version of Ray you are using. Make sure all Ray containers are running this version of Ray.
   # Use the Ray nightly or Ray version >= 2.10.0 and KubeRay 1.1.0 or later for autoscaler v2.
@@ -36,13 +36,14 @@ spec:
     rayStartParams:
       # Setting "num-cpus: 0" to avoid any Ray actors or tasks being scheduled on the Ray head Pod.
       num-cpus: "0"
+      num-gpus: "0"
     # Pod template
     template:
       spec:
         containers:
         # The Ray head container
         - name: ray-head
-          image: rayproject/ray:2.46.0
+          image: rayproject/ray:2.49.2-py310-cu124
           ports:
           - containerPort: 6379
             name: gcs
@@ -50,18 +51,20 @@ spec:
             name: dashboard
           - containerPort: 10001
             name: client
+          - containerPort: 8000
+            name: serving
           resources:
             limits:
               cpu: "1"
-              memory: "2G"
+              memory: "64G"
             requests:
               cpu: "1"
-              memory: "2G"
+              memory: "4G"
   workerGroupSpecs:
   # the Pod replicas in this group typed worker
   - replicas: 1
     minReplicas: 1
-    maxReplicas: 2
+    maxReplicas: 1
     groupName: small-group
     rayStartParams: {}
     # Pod template
@@ -69,13 +72,13 @@ spec:
       spec:
         containers:
         - name: ray-worker
-          image: rayproject/ray:2.46.0
+          image: rayproject/ray:2.49.2-py310-cu124
           resources:
             limits:
-              cpu: "1"
-              memory: "1G"
+              cpu: "8"
+              memory: "64G"
               nvidia.com/gpu: 1
             requests:
-              cpu: "1"
-              memory: "1G"
+              cpu: "4"
+              memory: "32G"
               nvidia.com/gpu: 1
