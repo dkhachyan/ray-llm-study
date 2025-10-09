@@ -43,7 +43,7 @@ spec:
         containers:
         # The Ray head container
         - name: ray-head
-          image: rayproject/ray:2.49.2-py310-cu124
+          image: rayproject/ray-llm:2.49.2-py311-cu128
           ports:
           - containerPort: 6379
             name: gcs
@@ -72,7 +72,7 @@ spec:
       spec:
         containers:
         - name: ray-worker
-          image: rayproject/ray:2.49.2-py310-cu124
+          image: rayproject/ray-llm:2.49.2-py311-cu128
           resources:
             limits:
               cpu: "8"
