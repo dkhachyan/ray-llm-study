@@ -1,0 +1,5 @@
+applications:
+- name: HelloWorld
+  import_path: serve_app:app   # <module>:<object>
+  deployments:
+    - name: HelloWorld
