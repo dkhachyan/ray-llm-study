@@ -1,6 +1,6 @@
 applications:
 - name: HelloWorld
-  route_prefix: /
+  route_prefix: /test
   import_path: serve_app:app   # <module>:<object>
   runtime_env:
     local_working_dir: ./
@@ -8,3 +8,11 @@ applications:
     - name: HelloWorld
       ray_actor_options:
         num_cpus: 1.0
+- import_path: ray.serve.llm:build_openai_app
+  name: vLLM_engine
+  route_prefix: /
+  args:
+    llm_configs:
+      - model_loading_config:
+          model_id: "qwen-0.5b"
+          model_source: "Qwen/Qwen2.5-0.5B-Instruct"
