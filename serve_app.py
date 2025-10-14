@@ -2,7 +2,7 @@
 from ray import serve
 from starlette.requests import Request
 
-@serve.deployment(route_prefix="/hello")
+@serve.deployment()
 class HelloWorld:
     async def __call__(self, request: Request):
         return "Hello from Ray Serve!"
