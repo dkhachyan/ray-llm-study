@@ -21,7 +21,7 @@ applications:
     #   - openai==1.70.0
     #   - vllm[runai]
   deployments:
-    - name: HelloWorld
+    - name: LLMServingAPI
       ray_actor_options:
         num_cpus: 1.0
         num_gpus: 1.0
