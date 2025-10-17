@@ -38,11 +38,4 @@ class HelloWorld:
         self.model2.sleep(level=1)
         return outputs[0].outputs[0].text
 
-    # async def __call__(self, request: Request):
-    #     self.model.wake_up()
-    #     outputs = self.model.generate(self.promt, self.sampling_params)
-    #     self.model.reset_prefix_cache()
-    #     self.model.sleep(level=1)
-    #     return outputs[0].outputs[0].text
-
 app = HelloWorld.bind()
