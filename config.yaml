@@ -1,16 +1,7 @@
 applications:
-# - name: HelloWorld
-#   route_prefix: /test
-#   import_path: serve_app:app   # <module>:<object>
-#   runtime_env:
-#     local_working_dir: ./
-#   deployments:
-#     - name: HelloWorld
-#       ray_actor_options:
-        # num_cpus: 1.0
 # - import_path: ray.serve.llm:build_openai_app
-#   name: vLLM_engine_local
-#   route_prefix: /llm_local
+#   name: vLLM_engine
+#   route_prefix: /
 #   args:
 #     llm_configs:
 #       - model_loading_config:
@@ -21,6 +12,14 @@ applications:
   route_prefix: /
   runtime_env:
     local_working_dir: ./
+    env_vars:
+      HF_TOKEN: ''
+      MODEL_PATH: Qwen/Qwen2.5-7B-Instruct
+      # MODEL_PATH: unsloth/Meta-Llama-3.1-8B-Instruct
+      VLLM_USE_V1: '1'
+    # pip:
+    #   - openai==1.70.0
+    #   - vllm[runai]
   deployments:
     - name: HelloWorld
       ray_actor_options:
