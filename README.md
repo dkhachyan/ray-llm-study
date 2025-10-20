@@ -4,4 +4,8 @@ curl -X POST http://localhost:8000/llama -H "Content-Type: application/json"   -
 
 curl -X POST http://localhost:8000/v1/chat/completions \
 -H "Content-Type: application/json" \
--d '{ "model": "qwen2.5-7b-instruct", "messages": [{"role": "user", "content": "What is your model name?"}] }'
+-d '{ "model": "Qwen/Qwen2.5-7B-Instruct", "messages": [{"role": "user", "content": "What is your model name?"}] }' && \
+
+curl -X POST http://localhost:8000/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{ "model": "unsloth/Meta-Llama-3.1-8B-Instruct", "messages": [{"role": "user", "content": "What is your model name?"}] }'

@@ -1,11 +1,12 @@
 from ray import serve
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from vllm import LLM, SamplingParams
 import logging
 from typing import Optional, Dict, Any
 import time
 import os
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -110,13 +111,10 @@ class ModelManager:
             generated_text = outputs[0].outputs[0].text
             tokens_generated = len(outputs[0].outputs[0].token_ids)
             
-            # Put model back to sleep
-            self.model.reset_prefix_cache()
-            self.model.sleep(level=1)
-            
             processing_time = time.time() - start_time
             logger.info(f"Generated {tokens_generated} tokens in {processing_time:.2f}s for model {self.model_name}")
             
+            # Don't put model to sleep here - it will be done after response is sent
             return generated_text, tokens_generated, processing_time
             
         except Exception as e:
@@ -128,6 +126,16 @@ class ModelManager:
             except Exception as sleep_error:
                 logger.error(f"Failed to put model to sleep: {str(sleep_error)}")
             raise
+    
+    async def sleep_model_after_response(self):
+        """Put model to sleep after response is sent"""
+        try:
+            await asyncio.sleep(0.1)  # Small delay to ensure response is sent
+            self.model.reset_prefix_cache()
+            self.model.sleep(level=1)
+            logger.info(f"Model {self.model_name} put to sleep after response")
+        except Exception as e:
+            logger.error(f"Failed to put model {self.model_name} to sleep after response: {str(e)}")
     
     def _format_messages_to_prompt(self, messages: list[ChatMessage]) -> str:
         """Convert chat messages to a prompt string"""
@@ -179,7 +187,7 @@ class LLMServingAPI:
     
     # OpenAI-compatible endpoints
     @api.post("/v1/chat/completions", response_model=ChatCompletionResponse)
-    async def create_chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+    async def create_chat_completion(self, request: ChatCompletionRequest, background_tasks: BackgroundTasks) -> ChatCompletionResponse:
         """OpenAI-compatible chat completion endpoint"""
         try:
             # Check if requested model is available
@@ -215,13 +223,18 @@ class LLMServingAPI:
                 total_tokens=tokens_generated
             )
             
-            return ChatCompletionResponse(
+            response = ChatCompletionResponse(
                 id=f"chatcmpl-{int(time.time())}",
                 created=int(time.time()),
                 model=request.model,
                 choices=[choice],
                 usage=usage
             )
+            
+            # Schedule model sleep after response is sent
+            background_tasks.add_task(self.model_managers[request.model].sleep_model_after_response)
+            
+            return response
             
         except Exception as e:
             logger.error(f"Chat completion failed for model {request.model}: {str(e)}")
