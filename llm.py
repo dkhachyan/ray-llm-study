@@ -151,10 +151,7 @@ api = FastAPI(
     version="1.0.0"
 )
 
-@serve.deployment(
-    num_replicas=1,
-    ray_actor_options={"num_cpus": 4, "num_gpus": 1}
-)
+@serve.deployment()
 @serve.ingress(api)
 class LLMServingAPI:
     """Main API class for serving multiple LLM models"""
