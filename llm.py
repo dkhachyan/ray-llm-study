@@ -5,33 +5,64 @@ from vllm import LLM, SamplingParams
 import logging
 from typing import Optional, Dict, Any
 import time
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Request and Response schemas
-class GenerationRequest(BaseModel):
-    prompt: str
+# OpenAI-compatible schemas
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: list[ChatMessage]
     temperature: Optional[float] = 0.8
     top_p: Optional[float] = 0.95
     max_tokens: Optional[int] = 512
+    stream: Optional[bool] = False
 
-class GenerationResponse(BaseModel):
-    text: str
+class ChatCompletionChoice(BaseModel):
+    index: int
+    message: ChatMessage
+    finish_reason: str
+
+class ChatCompletionUsage(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+class ChatCompletionResponse(BaseModel):
+    id: str
+    object: str = "chat.completion"
+    created: int
     model: str
-    processing_time: float
-    tokens_generated: int
+    choices: list[ChatCompletionChoice]
+    usage: ChatCompletionUsage
 
 class ModelConfig:
     """Configuration class for model settings"""
-    QWEN_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-    LLAMA_MODEL = "unsloth/Meta-Llama-3.1-8B-Instruct"
     DEFAULT_SAMPLING_PARAMS = {
         "temperature": 0.8,
         "top_p": 0.95,
         "max_tokens": 512
     }
+    
+    @staticmethod
+    def get_models_from_env() -> list:
+        """Get list of models from MODELS environment variable"""
+        models_env = os.getenv("MODELS", "")
+        if not models_env:
+            raise ValueError("MODELS environment variable is not set")
+        
+        models = [model.strip() for model in models_env.split(",") if model.strip()]
+        if not models:
+            raise ValueError("No valid models found in MODELS environment variable")
+        
+        logger.info(f"Loaded models from environment: {models}")
+        return models
 
 class ModelManager:
     """Manages vLLM model lifecycle and operations"""
@@ -55,8 +86,12 @@ class ModelManager:
             logger.error(f"Failed to initialize model {self.model_name}: {str(e)}")
             raise
     
-    def generate_text(self, prompt: str, custom_params: Optional[Dict[str, Any]] = None) -> str:
-        """Generate text with proper error handling and timing"""
+    
+    def generate_chat_completion(self, messages: list[ChatMessage], custom_params: Optional[Dict[str, Any]] = None) -> str:
+        """Generate chat completion with proper error handling and timing"""
+        # Convert messages to prompt format
+        prompt = self._format_messages_to_prompt(messages)
+        
         start_time = time.time()
         
         try:
@@ -85,7 +120,7 @@ class ModelManager:
             return generated_text, tokens_generated, processing_time
             
         except Exception as e:
-            logger.error(f"Error during text generation for model {self.model_name}: {str(e)}")
+            logger.error(f"Error during chat completion for model {self.model_name}: {str(e)}")
             # Ensure model is put back to sleep even if generation fails
             try:
                 self.model.reset_prefix_cache()
@@ -93,11 +128,26 @@ class ModelManager:
             except Exception as sleep_error:
                 logger.error(f"Failed to put model to sleep: {str(sleep_error)}")
             raise
+    
+    def _format_messages_to_prompt(self, messages: list[ChatMessage]) -> str:
+        """Convert chat messages to a prompt string"""
+        prompt = ""
+        for message in messages:
+            if message.role == "system":
+                prompt += f"System: {message.content}\n\n"
+            elif message.role == "user":
+                prompt += f"User: {message.content}\n\n"
+            elif message.role == "assistant":
+                prompt += f"Assistant: {message.content}\n\n"
+        
+        # Add the final assistant prompt
+        prompt += "Assistant:"
+        return prompt
 
 # FastAPI application
 api = FastAPI(
     title="vLLM API",
-    description="Serving vLLM models through Ray Serve with OpenAPI docs.",
+    description="Serving vLLM models through Ray Serve with OpenAPI docs. Includes OpenAI-compatible endpoints.",
     version="1.0.0"
 )
 
@@ -110,78 +160,93 @@ class LLMServingAPI:
     """Main API class for serving multiple LLM models"""
     
     def __init__(self):
-        self.qwen_manager = ModelManager(ModelConfig.QWEN_MODEL)
-        self.llama_manager = ModelManager(ModelConfig.LLAMA_MODEL)
-        logger.info("LLM Serving API initialized with both models")
-    
-    @api.post("/qwen", response_model=GenerationResponse)
-    async def generate_qwen(self, request: GenerationRequest) -> GenerationResponse:
-        """Generate text using Qwen model"""
-        try:
-            # Prepare custom sampling parameters
-            custom_params = {
-                "temperature": request.temperature,
-                "top_p": request.top_p,
-                "max_tokens": request.max_tokens
-            }
-            
-            # Generate text
-            generated_text, tokens_generated, processing_time = self.qwen_manager.generate_text(
-                request.prompt, custom_params
-            )
-            
-            return GenerationResponse(
-                text=generated_text,
-                model="Qwen2.5-7B-Instruct",
-                processing_time=processing_time,
-                tokens_generated=tokens_generated
-            )
-            
-        except Exception as e:
-            logger.error(f"Qwen generation failed: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
-    
-    @api.post("/llama", response_model=GenerationResponse)
-    async def generate_llama(self, request: GenerationRequest) -> GenerationResponse:
-        """Generate text using Llama model"""
-        try:
-            # Prepare custom sampling parameters
-            custom_params = {
-                "temperature": request.temperature,
-                "top_p": request.top_p,
-                "max_tokens": request.max_tokens
-            }
-            
-            # Generate text
-            generated_text, tokens_generated, processing_time = self.llama_manager.generate_text(
-                request.prompt, custom_params
-            )
-            
-            return GenerationResponse(
-                text=generated_text,
-                model="Llama-3.1-8B-Instruct",
-                processing_time=processing_time,
-                tokens_generated=tokens_generated
-            )
-            
-        except Exception as e:
-            logger.error(f"Llama generation failed: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        # Get models from environment variable
+        self.models = ModelConfig.get_models_from_env()
+        
+        # Create model managers for each model
+        self.model_managers = {}
+        for model_name in self.models:
+            try:
+                self.model_managers[model_name] = ModelManager(model_name)
+                logger.info(f"Successfully initialized model: {model_name}")
+            except Exception as e:
+                logger.error(f"Failed to initialize model {model_name}: {str(e)}")
+                raise
+        
+        logger.info(f"LLM Serving API initialized with models: {list(self.model_managers.keys())}")
     
     @api.get("/health")
     async def health_check(self) -> Dict[str, str]:
         """Health check endpoint"""
-        return {"status": "healthy", "models": "qwen,llama"}
+        return {"status": "healthy", "models": ",".join(self.models)}
     
-    @api.get("/models")
-    async def list_models(self) -> Dict[str, list]:
-        """List available models"""
+    # OpenAI-compatible endpoints
+    @api.post("/v1/chat/completions", response_model=ChatCompletionResponse)
+    async def create_chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        """OpenAI-compatible chat completion endpoint"""
+        try:
+            # Check if requested model is available
+            if request.model not in self.model_managers:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Model {request.model} not found. Available models: {list(self.model_managers.keys())}"
+                )
+            
+            # Prepare custom sampling parameters
+            custom_params = {
+                "temperature": request.temperature,
+                "top_p": request.top_p,
+                "max_tokens": request.max_tokens
+            }
+            
+            # Generate chat completion
+            generated_text, tokens_generated, processing_time = self.model_managers[request.model].generate_chat_completion(
+                request.messages, custom_params
+            )
+            
+            # Create response in OpenAI format
+            response_message = ChatMessage(role="assistant", content=generated_text)
+            choice = ChatCompletionChoice(
+                index=0,
+                message=response_message,
+                finish_reason="stop"
+            )
+            
+            usage = ChatCompletionUsage(
+                prompt_tokens=0,  # Note: vLLM doesn't provide prompt token count easily
+                completion_tokens=tokens_generated,
+                total_tokens=tokens_generated
+            )
+            
+            return ChatCompletionResponse(
+                id=f"chatcmpl-{int(time.time())}",
+                created=int(time.time()),
+                model=request.model,
+                choices=[choice],
+                usage=usage
+            )
+            
+        except Exception as e:
+            logger.error(f"Chat completion failed for model {request.model}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
+    
+    @api.get("/v1/models")
+    async def list_openai_models(self) -> Dict[str, Any]:
+        """OpenAI-compatible models list endpoint"""
+        models_list = []
+        for model_name in self.models:
+            models_list.append({
+                "id": model_name,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "vllm"
+            })
+        
         return {
-            "available_models": [
-                {"name": "Qwen2.5-7B-Instruct", "endpoint": "/qwen"},
-                {"name": "Llama-3.1-8B-Instruct", "endpoint": "/llama"}
-            ]
+            "object": "list",
+            "data": models_list
         }
+
 
 # Ray Serve deployment
 app = LLMServingAPI.bind()

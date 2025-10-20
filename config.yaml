@@ -14,8 +14,7 @@ applications:
     local_working_dir: ./
     env_vars:
       HF_TOKEN: ''
-      MODEL_PATH: Qwen/Qwen2.5-7B-Instruct
-      # MODEL_PATH: unsloth/Meta-Llama-3.1-8B-Instruct
+      MODELS: Qwen/Qwen2.5-7B-Instruct,unsloth/Meta-Llama-3.1-8B-Instruct
       VLLM_USE_V1: '1'
     # pip:
     #   - openai==1.70.0
